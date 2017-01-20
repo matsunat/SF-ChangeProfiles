@@ -1,0 +1,330 @@
+<apex:page applyBodyTag="true" applyHtmlTag="true" docType="HTML-5.0" controller="sha_MoveProfile">
+    <apex:stylesheet value="{!URLFOR($Resource.slds,'assets/styles/salesforce-lightning-design-system.min.css')}"/>
+    <apex:stylesheet value="{!URLFOR($Resource.ionicons,'ionicons-2.0.1/css/ionicons.min.css')}"/>
+    <apex:includeScript value="{!URLFOR($Resource.Angular,'Angulars/angular.min.1.5.5.js')}" />
+    <apex:includeScript value="{!URLFOR($Resource.blockUI,'blockUI/jquery-1.11.2.min.js')}" />
+    <apex:includeScript value="{!URLFOR($Resource.blockUI,'blockUI/jquery.blockUI.js')}" />
+    <style>
+    	html, body { height: 100%; }
+        .form{
+        	height:100%;     
+            font-family: "Meiryo UI", "メイリオ", "MS UI Gothic"; "ヒラギノ角ゴシック";
+         }
+                .displayNone{
+                    display:none;
+                }        
+        .selectbox{
+            background-color: #fff;
+            color: #16325c;
+            border: 1px solid #d8dde6;
+            border-radius: .25rem;
+            /* width: 100%; */
+            transition: border .1s linear,background-color .1s linear;
+            height: 2.125rem;
+        }
+    </style>
+    <script>
+    	var app = angular.module('myApp', []);
+    
+        	function GetPlofile(callback){
+                $.blockUI({ message: $('#blockUI'), css:{height: '100px'} });
+                   Visualforce.remoting.timeout = 120000;
+                   Visualforce.remoting.Manager.invokeAction(  
+                       '{!$RemoteAction.sha_MoveProfile.getProfiles}',
+                       callback,  
+                       {escape: false}
+                       );
+        	}
+            app.factory('PlofileFactory',function($q,$rootScope){  
+                       var factory = {};  
+                       factory.getData = function(){  
+                           var deferred = $q.defer();  
+                           GetPlofile(function(result){  
+                               $rootScope.$apply(function(){  
+                                   deferred.resolve(result);  
+                               });  
+                           });  
+                           return deferred.promise;  
+                       }  
+                       return factory;  
+            });
+        	function GetUsers(callback,pid){
+                $.blockUI({ message: $('#blockUI'), css:{height: '100px'} });
+                   Visualforce.remoting.timeout = 120000;
+                   Visualforce.remoting.Manager.invokeAction(  
+                       '{!$RemoteAction.sha_MoveProfile.getUsers}',pid,
+                       callback,  
+                       {escape: false}
+                       );
+        	}
+            app.factory('UserFactory',function($q,$rootScope){  
+                       var factory = {};  
+                       factory.getData = function(pid){  
+                           var deferred = $q.defer();  
+                           GetUsers(function(result){  
+                               $rootScope.$apply(function(){  
+                                   deferred.resolve(result);  
+                               });  
+                           },pid);  
+                           return deferred.promise;  
+                       }  
+                       return factory;  
+            });   
+        	function PutUsers(callback,lstUpd,pid){
+                $.blockUI({ message: $('#blockUI'), css:{height: '100px'} });
+                   Visualforce.remoting.timeout = 120000;
+                   Visualforce.remoting.Manager.invokeAction(  
+                       '{!$RemoteAction.sha_MoveProfile.putUsers}',lstUpd,pid,
+                       callback,  
+                       {escape: false}
+                       );
+        	}
+            app.factory('putUserFactory',function($q,$rootScope){  
+                       var factory = {};  
+                       factory.getData = function(lstUpd,pid){  
+                           var deferred = $q.defer();  
+                           PutUsers(function(result){  
+                               $rootScope.$apply(function(){  
+                                   deferred.resolve(result);  
+                               });  
+                           },lstUpd,pid);  
+                           return deferred.promise;  
+                       }  
+                       return factory;  
+            });    	
+    	app.controller('mainCtrl', function($scope,PlofileFactory,UserFactory,putUserFactory){
+            $scope.errmsg="";
+            $scope.infomsg="";
+
+            $scope.lstProfile = [];
+            $scope.lstUpdProfile = [];
+            $scope.Init = function(){
+                PlofileFactory.getData().then(function(result){
+                    $scope.lstProfile = result;
+                    $scope.lstUpdProfile = result;
+                    $.unblockUI();
+                });
+            }
+            $scope.lstData = [];
+		    $scope.Search = function(){
+                $scope.infomsg="";
+                $scope.errmsg="";
+                $scope.lstData = [];
+                $scope.limitBegin = 0;
+                $scope.btnLimit = 5;
+                $scope.btnIndex= 0;
+                $scope.btnSelectIndex=0;
+                try{
+                    UserFactory.getData($scope.pr.Id).then(function(result){
+                        try{
+                        $scope.lstData = result;
+                        if($scope.isBlank($scope.lstData) || $scope.lstData.length <0){
+                             $scope.infomsg="対象データは0件です。";
+                             $scope.lstData = [];
+                        }
+                       }catch(e){
+                           $scope.errmsg="システム管理者にお問い合わせください。"+e.message+': reslut:'+result;
+                       }
+                       $.unblockUI();
+                    });
+                }catch(e){
+                    $scope.errmsg="システム管理者にお問い合わせください。"+e.message+': reslut:'+result;
+                    $.unblockUI();
+                }  
+		    }
+            $scope.UpdProfile = function(){
+                if($scope.isBlank($scope.upr) || $scope.Nvl($scope.upr.Id)==$scope.pr.Id){
+                    $scope.errmsg="更新先のプロファイルが選択されていないか、同じです。";
+                }else{
+                    putUserFactory.getData(JSON.stringify($scope.filtered),$scope.upr.Id).then(function(result){
+                        if(result!='') { 
+                            $scope.errmsg="システム管理者にお問い合わせください。"+': reslut:'+result;
+                            }else{$scope.Search();}
+                        
+                        $.unblockUI();
+                        
+                    });
+                }
+            }
+            
+                //pager
+                $scope.limitBegin = 0;
+                $scope.btnLimit = 5;
+                $scope.btnIndex= 0;
+                $scope.btnSelectIndex=0;
+                $scope.pagerClick = function (pn,index) {
+                    pn=Math.round(pn);
+                    $scope.limitBegin = pn * $scope.pageLimit;
+                    $scope.btnSelectIndex=index;
+                }
+                $scope.next = function (pn) {
+                    $scope.limitBegin = pn * $scope.pageLimit;
+                    if(pn>=($scope.btnLimit-1)
+                       && $scope.btnSelectIndex == ($scope.btnLimit-1))
+                        {
+                            $scope.btnIndex+=1;
+                            $scope.btnSelectIndex=$scope.btnLimit-1;
+                         }
+                    if($scope.btnSelectIndex<$scope.btnLimit-1){
+                        $scope.btnSelectIndex+=1;
+                    }
+                }
+                $scope.prev = function (pn) {
+                    pn=Math.round(pn);
+                    $scope.limitBegin = (pn-2) * $scope.pageLimit;
+                    if(pn!=0 && $scope.btnSelectIndex==0){
+                        $scope.btnIndex-=1;
+                    }
+                    if($scope.btnSelectIndex>0){
+                        $scope.btnSelectIndex-=1;
+                    }
+                }
+                $scope.pagerArr = function(num) {
+                    num = Math.ceil(num);
+                    var array = [];
+                    for (var i = 0; i < num; i++) {
+                        array[i] = i;
+                    }
+                    return array;
+                }
+                $scope.btnToindex = function(pn,alpn) {
+                    pn=Math.round(pn);
+                    var btnidx = (alpn-1)-((alpn-1)-(pn-1));
+                    var btnshow = ((alpn-1) - btnidx)+1;
+                    var adds = 0;
+                    if(btnshow < $scope.btnLimit){
+                        adds = $scope.btnLimit - btnshow;
+                    }
+                    if(btnidx - adds<0){
+                        $scope.btnIndex = 0;
+                        $scope.btnSelectIndex = pn-1;
+                    }else{
+                        $scope.btnIndex = btnidx - adds;
+                        $scope.btnSelectIndex = adds;    
+                    }
+                }
+                $scope.round =function(num){
+                    return Math.round(num);
+                }                            
+            $scope.isBlank = function(val){
+                if(val=='' || val== null || val=='undifine') return true;
+                return false;
+            }
+            $scope.Nvl = function(val){
+                if(val=='' || val== null || val=='undifine') return '';
+                return val;
+            }            
+            
+        });
+    </script>
+            <div id="blockUI" style="display:none; cursor: default"> 
+                <div class="slds-spinner_container">
+                  <div class="slds-spinner--brand slds-spinner slds-spinner--medium" role="alert">
+                    <span class="slds-assistive-text">Loading</span>
+                    <div class="slds-spinner__dot-a"></div>
+                    <div class="slds-spinner__dot-b"></div>
+                  </div>
+                </div>
+            </div>
+    <apex:form >
+        <div ng-app="myApp"  ng-cloak="ng-cloak" class="ng-cloak">
+            <div ng-controller="mainCtrl">
+                <apex:sectionHeader title="スキーマ情報" subTitle="プロファイル変更" />
+                <article>
+					<div class="slds-size--1-of-4" style="margin-top:10px;margin-left:30px;">
+                        <label for="pr" style="padding-left:10px;">プロファイル</label>
+                        <select class="selectbox" ng-init="Init()" id="pr" ng-model="pr" ng-options="p as p.Name for p in lstProfile" ng-change="Search();"/>
+                        {{pr.UserLicense.Name}}
+                    </div>
+                </article>
+
+                    <div class="message" role="alert" ng-class="{'errorM3':(errmsg!=''),'infoM3':(infomsg!='')}" ng-if="errmsg!=''||infomsg!=''">
+                        <table border="0" cellpadding="0" cellspacing="0" class="messageTable" style="padding:0px;margin:0px;">
+                            <tbody>
+                               <tr valign="top">
+                                   <td style="width:40px;">
+                                       <img alt="ERROR" class="msgIcon" src="/s.gif" title="ERROR" ng-if="errmsg!=''"/>
+                                       <img alt="INFO" class="msgIcon" src="/s.gif" title="INFO" ng-if="infomsg!=''"/>
+                                   </td>
+                                   <td class="messageCell">
+                                       <div  class="messageText">
+                                           {{errmsg}} {{infomsg}}
+                                       </div>
+                                   </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                <br/>
+                    <!--message-->
+                <div class="slds-card" ng-class="{'displayNone':(lstData.length<=0)}" >
+                    <header class="slds-card__header slds-grid">
+                        <div class="slds-media slds-media--center slds-has-flexi-truncate">
+                            <div class="slds-media__figure">
+                                <label class="form-element__label" for="show">表示件数：</label>
+                                <select id="show" ng-model="pageLimit" ng-options="show for show  in [10,20,50,100]" ng-init="pageLimit=10" ng-change="pagerClick(0,0);btnToindex(limitBegin / pageLimit + 1,pagerArr(lstData.array.length / pageLimit).length);" />
+                            </div>
+                            <div class="slds-media__body">
+                                <div class="filter-result" style="float:left; width:120px;">
+                                    {{filtered.length|number:0}}件({{limitBegin / pageLimit + 1|number:0}} / {{pagerArr(filtered.length / pageLimit).length|number:0}})
+                                </div>
+								<div  style="float:left;margin-left:20px;">
+                                    
+                                    <input type="text" ng-model="q_LNAME"  maxlength="40" style="display:none;"/>
+                   
+                                </div>
+                            </div>
+                                 <div  style="float:right;margin-left:20px;">
+                                     <label class="form-element__label slds-text-body--small">変更先プロファイル</label>
+                                     <select class="selectbox" id="upr" ng-model="upr" ng-options="up as up.Name for up in lstUpdProfile" />
+                                     {{upr.UserLicense.Name}}
+                                      <button type="button" class="slds-button slds-button--neutral" ng-click="UpdProfile();">更新</button>
+                                </div>   
+                        </div>       
+                    </header>
+
+                    <section class="slds-card__body">
+                        <table  class="slds-table slds-table--bordered slds-max-medium-table--stacked-horizontal slds-no-row-hover">
+                            <thead>
+                                <tr class="slds-text-heading--label">
+                                    <th class="slds-cell-shrink slds-text-align--center">選択</th>
+                                    <th class="slds-cell-shrink slds-text-align--center">名前</th>
+                                    <th class="slds-cell-shrink slds-text-align--center">アカウント</th>
+                                    <th class="slds-cell-shrink slds-text-align--center">ロール</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="slds-hint-parent" ng-repeat="item in filtered = (lstData| filter: {LastName:q_LNAME})| limitTo: pageLimit: limitBegin" >
+                                    <td class="slds-size--1-of-12 slds-text-align--center" data-label="選択" >                                        
+                                		<input type="checkbox" ng-model="item.chk" ng-true-value="true" ng-false-value="false" />                            
+                                    </td>
+                                	<td class="slds-size--1-of-4 slds-text-align--left" data-label="名前" >
+                                        <a target="_blank" href="{{item.userlink}}">
+                                        {{item.u.LastName}}{{item.u.FirstName}}
+                                        </a>
+                                    </td>
+                                    <td class="slds-size--1-of-4 slds-text-align--left" data-label="アカウント" >{{item.u.Username}}</td>
+                                    <td class="slds-size--1-of-4 slds-text-align--left" data-label="ロール" >{{item.u.UserRole.Name}}</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+                    <div style="table-layout: fixed;width:100%;">
+                        <div class="slds-button-group" role="group" ng-if="filtered.length>0">
+                            <button class="slds-button slds-button--neutral" ng-disabled="round(limitBegin / pageLimit + 1)==1" type="button" ng-click="prev(limitBegin / pageLimit + 1);">
+                                 «
+                            </button>
+                            <button class="slds-button slds-button--neutral" ng-class="{'slds-button--brand':pager+1==round(limitBegin / pageLimit + 1)}" type="button" ng-repeat="pager in pagerArr(filtered.length / pageLimit)| limitTo:btnLimit:btnIndex" ng-click="pagerClick(pager,$index)">
+                                {{pager + 1}}
+                            </button>
+                            <button class="slds-button slds-button--neutral" ng-disabled="round(limitBegin / pageLimit + 1)==pagerArr(filtered.length / pageLimit).length" type="button" ng-click="next(limitBegin / pageLimit + 1);">
+                                 »
+                            </button>
+                        </div>
+            
+                    </div>
+                </div>
+            </div>
+        </div>
+    </apex:form>
+</apex:page>
